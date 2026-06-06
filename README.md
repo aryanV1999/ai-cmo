@@ -18,7 +18,7 @@ An AI-powered website intelligence platform that delivers brutal, honest SEO and
 - **Backend**: Next.js API routes, Prisma ORM
 - **Database**: PostgreSQL
 - **Crawler**: Playwright for headless browser crawling
-- **AI**: Claude API for generating verdicts
+- **AI**: OpenAI ChatGPT (gpt-4-turbo) for generating verdicts and CMO reports
 - **External APIs**: Google PageSpeed Insights, SEMrush/Ahrefs (optional)
 
 ## Getting Started
@@ -75,8 +75,12 @@ DATABASE_URL="postgresql://user:password@localhost:5432/ai_marketing_db"
 # Redis (for job queue)
 REDIS_URL="redis://localhost:6379"
 
+# OpenAI (ChatGPT)
+OPENAI_API_KEY="your-openai-api-key"
+OPENAI_CMO_MODEL="gpt-4-turbo"
+OPENAI_RESEARCH_MODEL="gpt-4-turbo"
+
 # External APIs
-ANTHROPIC_API_KEY="your-anthropic-api-key"
 GOOGLE_PAGESPEED_API_KEY="your-google-api-key"
 SEMRUSH_API_KEY="your-semrush-api-key"
 
