@@ -1,0 +1,247 @@
+// Database schema for AI Marketing Intelligence Platform
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AuditStatus {
+  PENDING
+  CRAWLING
+  ANALYZING
+  GENERATING_REPORT
+  COMPLETE
+  FAILED
+}
+
+enum Severity {
+  CRITICAL
+  WARNING
+  INFO
+}
+
+enum ActionStatus {
+  PENDING
+  COMPLETED
+  DISMISSED
+  SNOOZED
+}
+
+model Audit {
+  id          String      @id @default(cuid())
+  siteUrl     String
+  domain      String
+  status      AuditStatus @default(PENDING)
+  grade       String?     // F, D-, D, D+, C-, C, C+, B-, B, B+, A-, A, A+
+  gradeScore  Float?      // 0-100 numeric score
+  
+  // Progress tracking
+  progress    Int         @default(0) // 0-100 percentage
+  currentStep String?     // Current step description
+  
+  // Raw data
+  crawlData       Json?   // Raw crawl results
+  pagesDiscovered Int     @default(0)
+  pagesCrawled    Int     @default(0)
+  
+  // Analysis results
+  technicalSeo    Json?   // Technical SEO findings
+  onPageSeo       Json?   // On-page SEO findings
+  pageSpeed       Json?   // Core Web Vitals & speed scores
+  competitors     Json?   // Competitor comparison data
+  channels        Json?   // Marketing channel audit
+  linkGraph       Json?   // Internal link graph metrics
+  contentIntel    Json?   // Content intelligence signals
+
+  // GEO / AI Visibility
+  geoData         Json?   // AI answer engine visibility scores per provider
+  geoScore        Float?  // 0-100 composite GEO score
+
+  // AI-generated content
+  aiSummary       Json?   // Verdict, prioritized fixes, timeline
+  
+  // Report
+  pdfUrl          String?
+  reportGenerated Boolean @default(false)
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  completedAt DateTime?
+  expiresAt   DateTime @default(dbgenerated("NOW() + INTERVAL '90 days'"))
+  
+  // Relations
+  lead        Lead?
+  findings    Finding[]
+  actions     ActionItem[]
+  geoProbes   GeoProbe[]
+  
+  @@index([status])
+  @@index([domain])
+  @@index([createdAt])
+}
+
+model Finding {
+  id          String   @id @default(cuid())
+  auditId     String
+  audit       Audit    @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  
+  category    String   // technical, onpage, speed, content, competitor, marketing, geo
+  type        String   // e.g., "missing_meta_description", "slow_page_speed"
+  severity    Severity
+  
+  title       String
+  description String
+  impact      String   // Plain English impact description
+  howToFix    String   // Fix instructions
+  
+  // Affected resources
+  affectedUrls Json?   // Array of affected URLs (capped at 10)
+  affectedCount Int    @default(1)
+  
+  // Evidence payload - prevents hallucination
+  evidence    Json?    // Raw signal data backing this finding
+  
+  // Calibrated scoring
+  score       Float?   // 0-100 score for this finding
+  confidence  Int      @default(80) // 0-100 confidence in this finding
+  effortScore Int      @default(50) // 0-100, lower = less effort
+  impactScore Int      @default(50) // 0-100 expected business impact
+  priorityScore Float  @default(0)  // computed: impact*urgency*confidence/effort
+
+  data        Json?    // Additional data specific to finding type
+  
+  // Upsell mapping
+  serviceId   String?  // Matched service offering
+  serviceCta  String?  // CTA copy for upsell
+  
+  // Priority (calculated)
+  priority    Int      @default(0) // Higher = more urgent
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([auditId])
+  @@index([severity])
+  @@index([category])
+  @@index([priorityScore])
+}
+
+model ActionItem {
+  id          String       @id @default(cuid())
+  auditId     String
+  audit       Audit        @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  title       String
+  category    String       // technical, onpage, geo, content, speed
+  severity    Severity
+  status      ActionStatus @default(PENDING)
+
+  // Execution spec
+  whyNow      String       // Why this matters right now
+  whyThisPage String?      // Which page(s) and why
+  steps       Json         // Array of step strings
+  verificationChecks Json  // Array of check strings after fix
+  codeSnippet String?      // Copy-paste ready code/config
+  expectedResult String    // Expected measurable outcome
+  expectedResultWindow String // e.g. "2-4 weeks"
+
+  effortMinutes Int        @default(30)
+  impactScore   Int        @default(50) // 0-100
+  confidenceScore Int      @default(70) // 0-100
+  priorityScore Float      @default(0)
+
+  completedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([auditId])
+  @@index([status])
+  @@index([priorityScore])
+}
+
+model GeoProbe {
+  id          String   @id @default(cuid())
+  auditId     String
+  audit       Audit    @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  provider    String   // chatgpt | claude | perplexity | gemini
+  query       String   // The query sent
+  queryIntent String   // brand | category | problem | comparison
+  mentioned   Boolean  @default(false)
+  citedUrl    String?
+  position    Int?     // 1-10 rank in AI answer
+  sentiment   String?  // positive | neutral | negative | absent
+  responseSnippet String? // Short excerpt of AI response
+  score       Float    @default(0) // 0-100 computed visibility score
+
+  probedAt    DateTime @default(now())
+
+  @@index([auditId])
+  @@index([provider])
+}
+
+model Lead {
+  id        String   @id @default(cuid())
+  email     String
+  auditId   String   @unique
+  audit     Audit    @relation(fields: [auditId], references: [id], onDelete: Cascade)
+  
+  // Additional info captured
+  companyName String?
+  role        String?
+  
+  // GDPR compliance
+  consentGiven  Boolean  @default(true)
+  consentAt     DateTime @default(now())
+  
+  // CRM sync
+  crmSynced     Boolean  @default(false)
+  crmContactId  String?  // External CRM contact ID
+  syncedAt      DateTime?
+  
+  // Engagement tracking
+  reportViewed  Boolean  @default(false)
+  pdfDownloaded Boolean  @default(false)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([email])
+  @@index([crmSynced])
+}
+
+model UpsellInteraction {
+  id          String   @id @default(cuid())
+  auditId     String
+  leadEmail   String?
+  
+  serviceId   String   // e.g., "technical-seo", "content-strategy"
+  serviceName String
+  
+  interactionType String // view, click, book, dismiss
+  
+  // Context
+  findingType String?  // What finding triggered this upsell
+  position    String?  // Where in the report it appeared
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([auditId])
+  @@index([serviceId])
+  @@index([interactionType])
+}
+
+// Cache for expensive API calls
+model ApiCache {
+  id        String   @id @default(cuid())
+  key       String   @unique // e.g., "semrush:domain:example.com"
+  data      Json
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  @@index([key])
+  @@index([expiresAt])
+}
