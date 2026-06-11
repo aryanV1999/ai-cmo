@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/prisma";
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
 
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 200,
+    headers: corsHeaders,
+  });
+}
 const unlockSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
 });
@@ -24,14 +35,18 @@ export async function POST(
     if (!audit) {
       return NextResponse.json(
         { error: "Audit not found" },
-        { status: 404 }
+        { status: 404,
+          headers: corsHeaders,
+        }
       );
     }
 
     if (audit.status !== "COMPLETE") {
       return NextResponse.json(
         { error: "Audit is not yet complete" },
-        { status: 400 }
+        { status: 400,
+          headers: corsHeaders,
+        }
       );
     }
 
@@ -41,7 +56,11 @@ export async function POST(
         success: true,
         message: "Report already unlocked",
         reportUrl: `/audit/${auditId}`,
-      });
+      },
+      {
+        headers: corsHeaders,
+      }
+      );
     }
 
     // Create lead record
@@ -61,6 +80,9 @@ export async function POST(
       success: true,
       message: "Report unlocked successfully",
       reportUrl: `/audit/${auditId}`,
+    },
+    {
+      headers: corsHeaders,
     });
   } catch (error) {
     console.error("Error unlocking audit:", error);
@@ -68,13 +90,17 @@ export async function POST(
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Invalid email address", details: error.errors },
-        { status: 400 }
+        { status: 400,
+          headers: corsHeaders,
+        }
       );
     }
 
     return NextResponse.json(
       { error: "Failed to unlock report" },
-      { status: 500 }
+      { status: 500,
+        headers: corsHeaders,
+      }
     );
   }
 }
