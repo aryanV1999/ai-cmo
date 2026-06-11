@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+export async function OPTIONS() {
+  return new Response(null, {
+    status: 200,
+    headers: corsHeaders,
+  });
+}
+
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -30,7 +44,12 @@ export async function GET(
     });
 
     if (!audit) {
-      return NextResponse.json({ error: "Audit not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Audit not found" }, 
+        { 
+          status: 404,
+          headers: corsHeaders,
+        });
     }
 
     const isUnlocked = !!audit.lead;
@@ -158,9 +177,17 @@ export async function GET(
       }
     }
 
-    return NextResponse.json(base);
+    return NextResponse.json(base, {
+      headers: corsHeaders,
+    });
   } catch (error) {
     console.error("Error fetching audit:", error);
-    return NextResponse.json({ error: "Failed to fetch audit" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch audit" },
+      {
+        status: 500,
+        headers: corsHeaders,
+      }
+);
   }
 }
